@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Take it Cheesy</string>
+    <string name="back">BACK</string>
+    <string name="calibration">CALIBRATION</string>
+    <string name="skip">SKIP</string>
+    <string name="next">NEXT</string>
+    <string name="done">DONE</string>
+    <string name="click_on_a">Click on a %d!</string>
+    <string name="undo">UNDO</string>
+    <string name="redo">REDO</string>
+    <string name="cornerselect">SELECT CORNERS</string>
+    <string name="cheese">CHEESE</string>
+</resources>
