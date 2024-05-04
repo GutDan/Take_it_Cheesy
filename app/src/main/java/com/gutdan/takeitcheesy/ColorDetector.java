@@ -12,6 +12,15 @@ public class ColorDetector {
         NEGD;
     }
 
+    public class resDeviationPair {
+        public int result;
+        public double deviation;
+        public resDeviationPair(int result, double deviation) {
+            this.result = result;
+            this.deviation = deviation;
+        }
+    }
+
     //downscaling
     private static final int WIDTH = 100;
     private static final int HEIGHT = 87;
@@ -72,12 +81,22 @@ public class ColorDetector {
         this.cNegD = Arrays.stream(sNegD).mapToObj(v -> cCalib[v-1]).toArray(Color[]::new);
     }
 
-    public int[] getTile() { // returns the detected tile in vert posd negd order
+    public int[] getTile() { // returns the detected tile in vert, posd, negd, max(deviation) order
         if (cVert == null || colors == null) {
             throw new RuntimeException("call calculateAverageColors and setCalibration first");
         }
-        // alonzo church rotating in his grave right now
-        return Arrays.stream(new int[]{0,1,2}).map(v -> getClosestColor(this.colors[v], Dir.values()[v])).toArray();
+        resDeviationPair[] rdps = new resDeviationPair[]{
+            getClosestColor(this.colors[0], Dir.values()[0]),
+            getClosestColor(this.colors[1], Dir.values()[1]),
+            getClosestColor(this.colors[2], Dir.values()[2])
+        };
+
+        return new int[]{
+                rdps[0].result,
+                rdps[1].result,
+                rdps[2].result,
+                (int) Math.max(rdps[0].deviation, Math.max(rdps[1].deviation, rdps[2].deviation))
+        };
     }
 
     private static double getAverageL(Bitmap bm_cutout) {  // calculate average luminance
@@ -148,7 +167,7 @@ public class ColorDetector {
 
 
 
-    private int getClosestColor(Color c, Dir dir) {
+    private resDeviationPair getClosestColor(Color c, Dir dir) {
         if (dir == Dir.VERT) {
             return findClosestColorIn(c, cVert, sVert);
         } else if (dir == Dir.POSD) {
@@ -156,19 +175,19 @@ public class ColorDetector {
         } else if (dir == Dir.NEGD) {
             return findClosestColorIn(c, cNegD, sNegD);
         }
-        return -1;
+        return new resDeviationPair(-1, 360);
     }
 
-    private int findClosestColorIn(Color c, Color[] cs, int[] ss) {
-        double minDist = distRGB(c, cs[0]);
+    private resDeviationPair findClosestColorIn(Color c, Color[] cs, int[] ss) {
+        double minDist = Math.min(distHSV(c, cs[0]), distRGB(c, cs[0])*360/255);
         int minIndex = 0;
         for (int i = 1; i < cs.length; i++) {
-            double curDist = Math.min(distHSV(c, cs[i]), distRGB(c, cs[i])); //todo normalize
+            double curDist = Math.min(distHSV(c, cs[i]), distRGB(c, cs[i])*360/255);
             if (curDist <= minDist) {
                 minDist = curDist;
                 minIndex = i;
             }
         }
-        return ss[minIndex];
+        return new resDeviationPair(ss[minIndex], minDist);
     }
 }

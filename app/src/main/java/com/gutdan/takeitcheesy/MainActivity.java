@@ -2,8 +2,6 @@ package com.gutdan.takeitcheesy;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -11,13 +9,13 @@ import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.ImageView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
 import androidx.core.graphics.Insets;
@@ -25,10 +23,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -48,6 +43,7 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
+        deleteAllImages();
 
         this.camActivityResultLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -114,7 +110,16 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-
+    private void deleteAllImages() {
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        if (storageDir == null) {
+            Log.e("MainActivity", "cant get Environment.DIRECTORY_PICTURES");
+            return;
+        }
+        for (File f: storageDir.listFiles()) {
+            f.delete();
+        }
+    }
 
     private File createImageFile() throws IOException {
         String imageFileName = "lastpicture";

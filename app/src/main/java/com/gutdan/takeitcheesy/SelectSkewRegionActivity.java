@@ -319,4 +319,10 @@ public class SelectSkewRegionActivity extends AppCompatActivity {
             }
         }
     }
+
+    @Override
+    protected void onDestroy() {
+        Log.i("Cleanup", String.valueOf(deleteFile(this.image_path)));
+        super.onDestroy();
+    }
 }

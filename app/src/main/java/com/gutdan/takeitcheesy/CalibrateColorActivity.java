@@ -1,6 +1,10 @@
 package com.gutdan.takeitcheesy;
 
+import static java.util.Collections.max;
+import static java.util.Collections.min;
+
 import android.annotation.SuppressLint;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -24,6 +28,7 @@ import androidx.core.view.WindowInsetsCompat;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 public class CalibrateColorActivity extends AppCompatActivity {
@@ -31,6 +36,7 @@ public class CalibrateColorActivity extends AppCompatActivity {
     private Bitmap cut_bm;
 
     private ImageView iv_cut;
+    private String cut_path;
 
     private ConstraintLayout cl_buttonarray;
 
@@ -44,6 +50,10 @@ public class CalibrateColorActivity extends AppCompatActivity {
 
     private int progress;
     private int[][] calibrationSquares;
+
+    private SharedPreferences sharedPreferences;
+
+    private static final String PREF_CALIB = "pref_calib";
 
 
     @SuppressLint("UseCompatLoadingForDrawables")
@@ -64,6 +74,7 @@ public class CalibrateColorActivity extends AppCompatActivity {
         this.bt_next.setOnClickListener(v -> nextScreen());
         this.bt_back.setOnClickListener(v -> finish());
 
+        this.cut_path = getIntent().getStringExtra("cut path");
         try {
             this.cut_bm = BitmapFactory.decodeFile(getIntent().getStringExtra("cut path"));
         } catch (Exception e) {
@@ -103,6 +114,9 @@ public class CalibrateColorActivity extends AppCompatActivity {
         this.bt_redo.setOnClickListener(v -> resetProgress());
 
         this.bt_undo.setOnClickListener(v -> undoProgress());
+
+
+        this.sharedPreferences = getSharedPreferences(PREF_CALIB, MODE_PRIVATE);
     }
 
     private void initButtonArray() {
@@ -166,6 +180,10 @@ public class CalibrateColorActivity extends AppCompatActivity {
                 bt_cur.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
+                        if (progress == 0) { //todo bugfixing be like
+                            resetProgress();
+                        }
+
                         if (progress < 9) {
                             calibrationSquares[progress] = new int[]{curL, curR};
                             progress++;
@@ -214,10 +232,10 @@ public class CalibrateColorActivity extends AppCompatActivity {
     }
 
     private void resetProgress() {
-        if (this.calibrationSquares != null) {
-            for (int[] bt: this.calibrationSquares) {
-                if (bt != null) {
-                    this.bts_cal[bt[0]][bt[1]].setText("");
+        for (int l = 0; l <= 4; l++) {
+            for (int r = Math.max(0, l-2); r <= Math.min(4, 2+l); r++) {
+                if (bts_cal != null && bts_cal[l][r] != null) {
+                    this.bts_cal[l][r].setText("");
                 }
             }
         }
@@ -237,10 +255,12 @@ public class CalibrateColorActivity extends AppCompatActivity {
     }
 
     private void nextScreen() {
-        //Log.e("GD", String.valueOf(Runtime.getRuntime().availableProcessors()));
         if (this.progress != 9) {
-            Log.e("GD","skip");
-            return;
+            // cant skip because no calibration stored
+            if (! this.sharedPreferences.getBoolean("data_exists", false)) {
+                Toast.makeText(getApplicationContext(), "No calibration found in storage.\nCannot skip.",Toast.LENGTH_SHORT).show();
+                return;
+            }
         }
 
         //color detection
@@ -279,38 +299,75 @@ public class CalibrateColorActivity extends AppCompatActivity {
                 cds[l][r] = cd_curr;
                 cd_curr.calculateAverageColors();
 
-                //get calibration from selected tiles
-                for (int i = 1; i <= this.calibrationSquares.length; i++) {
-                    int[] coords = this.calibrationSquares[i-1];
-                    if (l == coords[0] && r == coords[1]) {
-                        if (i == 1 || i == 5 || i == 9) {
-                            cCalib[i-1] = cd_curr.getColorForCalib(ColorDetector.Dir.VERT);
-                        } else if (i == 2 || i == 6 || i == 7) {
-                            cCalib[i-1] = cd_curr.getColorForCalib(ColorDetector.Dir.POSD);
-                        } else {  // 3, 4, 8
-                            cCalib[i-1] = cd_curr.getColorForCalib(ColorDetector.Dir.NEGD);
+
+            }
+        }
+
+        if (this.progress == 9) {  // calibration is done
+            //get cCalib
+            for (int l = 0; l <= 4; l++) {
+                for (int r = Math.max(0, l - 2); r <= Math.min(4, 2 + l); r++) {
+                    ColorDetector cd_curr = cds[l][r];
+                    //get calibration from selected tiles
+                    for (int i = 1; i <= this.calibrationSquares.length; i++) {
+                        int[] coords = this.calibrationSquares[i - 1];
+                        if (l == coords[0] && r == coords[1]) {
+                            if (i == 1 || i == 5 || i == 9) {
+                                cCalib[i - 1] = cd_curr.getColorForCalib(ColorDetector.Dir.VERT);
+                            } else if (i == 2 || i == 6 || i == 7) {
+                                cCalib[i - 1] = cd_curr.getColorForCalib(ColorDetector.Dir.POSD);
+                            } else {  // 3, 4, 8
+                                cCalib[i - 1] = cd_curr.getColorForCalib(ColorDetector.Dir.NEGD);
+                            }
                         }
                     }
                 }
             }
+            // save cCalib
+            SharedPreferences.Editor editor = this.sharedPreferences.edit();
+            editor.putBoolean("data_exists", true);
+            for (int i = 1; i <= 9; i++) {
+                editor.putInt(String.valueOf(i), cCalib[i-1].getSRGBint());
+            }
+            editor.apply();
+        } else { // calibration was skipped
+            for (int i = 1; i <= 9; i++) {
+                cCalib[i-1] = new Color(this.sharedPreferences.getInt(String.valueOf(i), 0));
+            }
         }
+        // todo bugfixing be like
+        resetProgress();
 
-        // todo write cCalib to file
 
         int[][] vert = new int[5][5];
         int[][] posd = new int[5][5];
         int[][] negd = new int[5][5];
 
+        ArrayList<Double> squareDvs = new ArrayList<Double>();
 
         // set calibration and get tiles
         for (int l = 0; l <= 4; l++) {
             for (int r = Math.max(0, l-2); r <= Math.min(4, 2+l); r++) {
                 cds[l][r].setCalibration(cCalib);
                 int[] vpn = cds[l][r].getTile();
+                squareDvs.add((vpn[3]/360d)*(vpn[3]/360d));
                 vert[l][r] = vpn[0];
                 posd[l][r] = vpn[1];
                 negd[l][r] = vpn[2];
-                this.bts_cal[l][r].setText(Arrays.toString(vpn));
+                this.bts_cal[l][r].setText(vpn[0]+" "+vpn[1]+" "+vpn[2]);
+            }
+        }
+
+        double maxSd = max(squareDvs);
+        double minSd = min(squareDvs);
+
+        // set color
+        int index = 0;
+        for (int l = 0; l <= 4; l++) {
+            for (int r = Math.max(0, l-2); r <= Math.min(4, 2+l); r++) {
+                Color c = new Color((int) (255 * (squareDvs.get(index)- minSd)/(maxSd-minSd)), (int) (255* (1-(squareDvs.get(index)- minSd)/(maxSd-minSd))), 0);
+                // this.bts_cal[l][r].setTextColor(c.getSRGBint());
+                index++;
             }
         }
 
@@ -371,5 +428,11 @@ public class CalibrateColorActivity extends AppCompatActivity {
         this.tv_cal.setText(String.format("Score: %d", acc));
 
         Log.e("GD","next");
+    }
+
+    @Override
+    protected void onDestroy() {
+        Log.i("Cleanup", String.valueOf(deleteFile(this.cut_path)));
+        super.onDestroy();
     }
 }
